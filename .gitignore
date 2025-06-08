@@ -1,0 +1,11 @@
+# Build artifacts
+obj/
+zinc
+
+# VSCode specific
+.vscode/
+
+# macOS specific
+.DS_Store
+
+Makefile 

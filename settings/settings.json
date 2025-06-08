@@ -1,0 +1,37 @@
+{
+    "color_pairs_definitions": {},
+    "color_scheme": {
+        "pair_default": 1,
+        "pair_error_message": 8,
+        "pair_highlight": 2,
+        "pair_list_item": 5,
+        "pair_list_item_selected": 6,
+        "pair_panel_border": 3,
+        "pair_panel_title": 4,
+        "pair_status_bar": 7
+    },
+    "keybindings": {
+        "back_cancel": 113,
+        "confirm": 343,
+        "exit_app": 120,
+        "navigate_down": 258,
+        "navigate_left": 260,
+        "navigate_right": 261,
+        "navigate_up": 259
+    },
+    "language": "en",
+    "module_activity": {
+        "BackgroundAnimation": true,
+        "Goals": false,
+        "Habits": true,
+        "MinimalTUI": true,
+        "Placeholder": false,
+        "Pomodoro": true,
+        "Quote": false,
+        "Schedule": true,
+        "Tasks": true,
+        "Time Analytics": false
+    },
+    "settings_version": 1,
+    "username": "glebw"
+}
