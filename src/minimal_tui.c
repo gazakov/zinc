@@ -73,23 +73,14 @@ void minimal_tui_init(MinimalTui *tui) {
   for (int i = 0; i < NUM_MODULES_IMPL; ++i) {
     tui->modules[i] = all_modules[i];
   }
-  HabitData *habit_data = malloc(sizeof(HabitData));
-  module_habits.data = habit_data;
-
-  TaskData *task_data = malloc(sizeof(TaskData));
-  task_data->selected = 0;
-  module_tasks.data = task_data;
-
-  PomodoroData *pomodoro_data = malloc(sizeof(PomodoroData));
-  pomodoro_init_data(pomodoro_data);
-  module_pomodoro.data = pomodoro_data;
+  // Data for modules is handled statically within the modules themselves
+  
+  pomodoro_init();
 }
 
 void minimal_tui_cleanup(MinimalTui *tui) {
   wm_cleanup(&tui->wm);
-  free(module_habits.data);
-  free(module_tasks.data);
-  free(module_pomodoro.data);
+  // No need to free module data as it's static
 }
 
 void minimal_tui_resize(MinimalTui *tui) {

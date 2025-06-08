@@ -49,7 +49,10 @@ static void ensure_task_selected() {
 
 
 void tasks_init() {
-    task_data.head_count = 0;
+    task_data.head_count = 1; // head 0 is for standalone tasks
+    task_data.heads[0].task_count = 0;
+    strcpy(task_data.heads[0].name, "");
+
     task_data.selected_head = 0;
     task_data.selected_task = -1;
     task_data.edit_mode = false;
@@ -62,17 +65,20 @@ void tasks_cleanup() {
 
 void tasks_module_render(struct IModule* self, WINDOW* win) {
     werase(win);
-    box(win, 0, 0);
+    // box(win, 0, 0);
     mvwprintw(win, 1, 2, "Tasks %s", task_data.edit_mode ? "[EDIT MODE]" : "");
 
     int y = 3;
     for (int h = 0; h < task_data.head_count; h++) {
-        if (h == task_data.selected_head && task_data.selected_task == -1) {
-            wattron(win, A_REVERSE);
-        }
-        mvwprintw(win, y++, 2, "%s:", task_data.heads[h].name);
-        if (h == task_data.selected_head && task_data.selected_task == -1) {
-            wattroff(win, A_REVERSE);
+        // Don't render a header for standalone tasks (h==0)
+        if (h > 0) {
+            if (h == task_data.selected_head && task_data.selected_task == -1) {
+                wattron(win, A_REVERSE);
+            }
+            mvwprintw(win, y++, 2, "%s:", task_data.heads[h].name);
+            if (h == task_data.selected_head && task_data.selected_task == -1) {
+                wattroff(win, A_REVERSE);
+            }
         }
 
         for (int t = 0; t < task_data.heads[h].task_count; t++) {
@@ -82,12 +88,13 @@ void tasks_module_render(struct IModule* self, WINDOW* win) {
             if (is_selected) wattron(win, A_REVERSE);
             if (task->completed) wattron(win, A_DIM);
             
-            mvwprintw(win, y, 4, "[%c] %s", task->completed ? 'X' : ' ', task->description);
+            int x_offset = (h > 0) ? 4 : 2;
+            mvwprintw(win, y, x_offset, "[%c] %s", task->completed ? 'X' : ' ', task->description);
 
             if (task->completed) {
                  int task_len = strlen(task->description);
                  for (int i = 0; i < task_len; i++) {
-                    mvwaddch(win, y, 8 + i, '-');
+                    mvwaddch(win, y, x_offset + 4 + i, '-');
                  }
             }
 
@@ -95,7 +102,10 @@ void tasks_module_render(struct IModule* self, WINDOW* win) {
             if (task->completed) wattroff(win, A_DIM);
             y++;
         }
-        y++; 
+        
+        if (h < task_data.head_count - 1) {
+            y++; 
+        }
     }
 
     int max_y = getmaxy(win);
@@ -264,25 +274,32 @@ void tasks_module_handle_input(struct IModule* self, int ch, struct MinimalTui* 
                 break;
             case 'x': case 'X':
                  if (task_data.selected_task == -1) { // a head is selected
-                    if (task_data.head_count > 0) {
+                    if (task_data.head_count > 0 && task_data.selected_head > 0) {
                         int head_to_delete = task_data.selected_head;
-                        // move all subsequent heads up
-                        for (int i = head_to_delete; i < task_data.head_count - 1; i++) {
-                            task_data.heads[i] = task_data.heads[i + 1];
+                        
+                        if (head_to_delete < task_data.head_count - 1) {
+                            memmove(&task_data.heads[head_to_delete], 
+                                    &task_data.heads[head_to_delete + 1], 
+                                    (task_data.head_count - head_to_delete - 1) * sizeof(TaskHead));
                         }
                         task_data.head_count--;
+
                         if (task_data.selected_head >= task_data.head_count && task_data.head_count > 0) {
                             task_data.selected_head = task_data.head_count - 1;
                         } else if (task_data.head_count == 0) {
                             task_data.selected_head = 0;
+                            task_data.selected_task = -1;
                         }
                     }
                 } else { // a task is selected
                     int head_idx = task_data.selected_head;
                     if (head_idx >= 0 && task_data.heads[head_idx].task_count > 0) {
                         int task_to_delete = task_data.selected_task;
-                        for (int i = task_to_delete; i < task_data.heads[head_idx].task_count - 1; i++) {
-                            task_data.heads[head_idx].tasks[i] = task_data.heads[head_idx].tasks[i + 1];
+
+                        if (task_to_delete < task_data.heads[head_idx].task_count - 1) {
+                            memmove(&task_data.heads[head_idx].tasks[task_to_delete], 
+                                    &task_data.heads[head_idx].tasks[task_to_delete + 1], 
+                                    (task_data.heads[head_idx].task_count - task_to_delete - 1) * sizeof(TaskItem));
                         }
                         task_data.heads[head_idx].task_count--;
 
@@ -294,6 +311,7 @@ void tasks_module_handle_input(struct IModule* self, int ch, struct MinimalTui* 
                         }
                     }
                 }
+                tasks_save("data/tasks.csv");
                 break;
             case KEY_UP:
                  if (task_data.selected_task > 0) {
@@ -482,10 +500,14 @@ int tasks_load(const char* filename) {
         char* completed_str = (num_fields > 2) ? fields[2] : "0";
 
         int head_idx = -1;
-        for (int i = 0; i < task_data.head_count; i++) {
-            if (strcmp(task_data.heads[i].name, head_name) == 0) {
-                head_idx = i;
-                break;
+        if (strlen(head_name) == 0) {
+            head_idx = 0;
+        } else {
+            for (int i = 1; i < task_data.head_count; i++) {
+                if (strcmp(task_data.heads[i].name, head_name) == 0) {
+                    head_idx = i;
+                    break;
+                }
             }
         }
 
@@ -525,7 +547,9 @@ int tasks_save(const char* filename) {
 
     for (int h = 0; h < task_data.head_count; h++) {
         if (task_data.heads[h].task_count == 0) {
-            fprintf(file, "\"%s\",\"\",0\n", task_data.heads[h].name);
+            if (h > 0) {
+                fprintf(file, "\"%s\",\"\",0\n", task_data.heads[h].name);
+            }
         } else {
             for (int t = 0; t < task_data.heads[h].task_count; t++) {
                 fprintf(file, "\"%s\",\"%s\",%d\n",

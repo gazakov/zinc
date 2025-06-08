@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+static PomodoroData pomodoro_data;
+
 // static assets
 static const char *smoke_frames[4][2] = {
     {"   ( (", "    ) )"}, {"    ) )", "   ( ("},
@@ -13,22 +15,22 @@ static const char *smoke_frames[4][2] = {
 static const char *cup[] = {" ........", " |      |]", " \\      /", "  `----'"};
 
 // forward declaration
-static void start_new_session(PomodoroData *data, PomodoroSessionState state);
+static void start_new_session(PomodoroSessionState state);
 
 // --- Initialization ---
-void pomodoro_init_data(PomodoroData *data) {
-  data->work_duration = 25 * 60;
-  data->rest_duration = 5 * 60;
-  data->progressive_step = 15 * 60;
-  data->current_work_duration = 0; // will be set by start_new_session
-  data->cycle_mode = POMO_MODE_STANDARD;
-  data->editing_state = POMO_STATE_WORK; // default
-  data->frame = 0; // initialize frame
-  start_new_session(data, POMO_STATE_WORK);
+void pomodoro_init() {
+  pomodoro_data.work_duration = 25 * 60;
+  pomodoro_data.rest_duration = 5 * 60;
+  pomodoro_data.progressive_step = 15 * 60;
+  pomodoro_data.current_work_duration = 0; // will be set by start_new_session
+  pomodoro_data.cycle_mode = POMO_MODE_STANDARD;
+  pomodoro_data.editing_state = POMO_STATE_WORK; // default
+  pomodoro_data.frame = 0; // initialize frame
+  start_new_session(POMO_STATE_WORK);
 }
 
 // --- UI Rendering ---
-static void draw_edit_window(PomodoroData *data, WINDOW *parent_win) {
+static void draw_edit_window(WINDOW *parent_win) {
   int parent_h, parent_w;
   getmaxyx(parent_win, parent_h, parent_w);
   int h = 5, w = 24;
@@ -37,18 +39,18 @@ static void draw_edit_window(PomodoroData *data, WINDOW *parent_win) {
 
   WINDOW *edit_win = newwin(h, w, y, x);
   box(edit_win, 0, 0);
-  const char *title = (data->editing_state == POMO_STATE_WORK)
+  const char *title = (pomodoro_data.editing_state == POMO_STATE_WORK)
                           ? "Set Work Time (MMSS)"
                           : "Set Rest Time (MMSS)";
   mvwprintw(edit_win, 1, 2, "%s", title);
 
   char display_buf[5] = "____";
-  strncpy(display_buf, data->edit_buffer, 4);
+  strncpy(display_buf, pomodoro_data.edit_buffer, 4);
   mvwprintw(edit_win, 2, (w - 5) / 2, "%c%c:%c%c", display_buf[0],
             display_buf[1], display_buf[2], display_buf[3]);
 
-  int cursor_x_offset = (w - 5) / 2 + data->edit_cursor_pos;
-  if (data->edit_cursor_pos >= 2) cursor_x_offset++;
+  int cursor_x_offset = (w - 5) / 2 + pomodoro_data.edit_cursor_pos;
+  if (pomodoro_data.edit_cursor_pos >= 2) cursor_x_offset++;
   wmove(edit_win, 2, cursor_x_offset);
   curs_set(1);
 
@@ -57,7 +59,8 @@ static void draw_edit_window(PomodoroData *data, WINDOW *parent_win) {
 }
 
 void pomodoro_module_render(struct IModule *self, WINDOW *win) {
-  PomodoroData *data = (PomodoroData *)self->data;
+  (void)self;
+  PomodoroData *data = &pomodoro_data;
   werase(win);
   box(win, 0, 0);
 
@@ -88,7 +91,7 @@ void pomodoro_module_render(struct IModule *self, WINDOW *win) {
   wnoutrefresh(win);
 
   if (data->ui_mode == POMO_UI_EDITING) {
-    draw_edit_window(data, win);
+    draw_edit_window(win);
   } else {
     curs_set(0);
   }
@@ -96,7 +99,9 @@ void pomodoro_module_render(struct IModule *self, WINDOW *win) {
 
 // --- Input Handling ---
 void pomodoro_module_handle_input(struct IModule *self, int ch, struct MinimalTui *tui) {
-  PomodoroData *data = (PomodoroData *)self->data;
+  (void)self;
+  (void)tui;
+  PomodoroData *data = &pomodoro_data;
 
   if (data->ui_mode == POMO_UI_EDITING) {
     if (isdigit(ch) && data->edit_cursor_pos < 4) {
@@ -119,7 +124,7 @@ void pomodoro_module_handle_input(struct IModule *self, int ch, struct MinimalTu
 
         // if we edited the currently active session, restart it with the new time
         if (data->editing_state == data->current_state) {
-          start_new_session(data, data->current_state);
+          start_new_session(data->current_state);
         }
       }
       data->ui_mode = POMO_UI_NORMAL;
@@ -142,29 +147,29 @@ void pomodoro_module_handle_input(struct IModule *self, int ch, struct MinimalTu
       data->is_running = !data->is_running;
       break;
     case 'r':
-      start_new_session(data, data->current_state);
+      start_new_session(data->current_state);
       break;
     case 'm':
       data->cycle_mode = (data->cycle_mode == POMO_MODE_STANDARD) ? POMO_MODE_PROGRESSIVE : POMO_MODE_STANDARD;
       data->current_work_duration = 0; // reset progress
-      start_new_session(data, POMO_STATE_WORK);
+      start_new_session(POMO_STATE_WORK);
       break;
     }
   }
-  (void)tui;
 }
 
 // --- Time & State Logic ---
 void pomodoro_module_tick(struct IModule *self) {
-  PomodoroData *data = (PomodoroData *)self->data;
+  (void)self;
+  PomodoroData *data = &pomodoro_data;
   if (data->is_running && data->total_seconds > 0) {
     data->total_seconds--;
   } else if (data->is_running && data->total_seconds == 0) {
     beep(); napms(300); beep(); napms(300); beep(); // play a sound 3 times with a longer delay
     if (data->current_state == POMO_STATE_WORK) {
-      start_new_session(data, POMO_STATE_REST);
+      start_new_session(POMO_STATE_REST);
     } else {
-      start_new_session(data, POMO_STATE_WORK);
+      start_new_session(POMO_STATE_WORK);
     }
   }
   if (data->is_running) {
@@ -172,7 +177,8 @@ void pomodoro_module_tick(struct IModule *self) {
   }
 }
 
-static void start_new_session(PomodoroData *data, PomodoroSessionState state) {
+static void start_new_session(PomodoroSessionState state) {
+  PomodoroData *data = &pomodoro_data;
   data->current_state = state;
   data->is_running = 0;
   data->ui_mode = POMO_UI_NORMAL;

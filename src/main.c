@@ -5,6 +5,7 @@
 #include <time.h>
 #include <string.h>
 #include "../modules/habit_manager.h"
+#include "../modules/task_manager.h"
 #include "minimal_tui.h"
 
 #define SETTINGS_FILE "data/settings.conf"
@@ -22,6 +23,9 @@ int main() {
 
     if (habits_load("data/habits.csv") != 0) {
         habits_init();
+    }
+    if (tasks_load("data/tasks.csv") != 0) {
+        tasks_init();
     }
 
     // handle daily updates
@@ -50,6 +54,7 @@ int main() {
     if (strcmp(today_str, last_update_str) != 0) {
         habits_daily_update();
         habits_save("data/habits.csv");
+        tasks_save("data/tasks.csv");
 
         FILE* f_write = fopen(SETTINGS_FILE, "w");
         if (f_write) {
@@ -79,6 +84,9 @@ int main() {
 
     if (habits_save("data/habits.csv") != 0) {
         fprintf(stderr, "Error saving habits.\n");
+    }
+    if (tasks_save("data/tasks.csv") != 0) {
+        fprintf(stderr, "Error saving tasks.\n");
     }
 
     return 0;

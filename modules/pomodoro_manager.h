@@ -41,7 +41,7 @@ typedef struct {
     char edit_buffer[5]; // "MMSS\0"
 } PomodoroData;
 
-void pomodoro_init_data(PomodoroData* data);
+void pomodoro_init(void);
 void pomodoro_module_render(struct IModule* self, WINDOW* win);
 void pomodoro_module_handle_input(struct IModule* self, int ch, struct MinimalTui* tui);
 void pomodoro_module_tick(struct IModule* self);
